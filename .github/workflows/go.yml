@@ -6,7 +6,7 @@ name: Go
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 permissions:
   contents: write
@@ -15,18 +15,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.27.1'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.1"
 
-    - name: Build
-      run: go build -o kube-dnr
+      - name: Build
+        run: go build -o kube-dnr
 
-    - name: Create Release and Upload Asset
-      uses: softprops/action-gh-release@v2
-      with:
-        files: kube-dnr
-        generate_release_notes: true
+      - uses: ksm2/archive-action@v1
+        with:
+          format: "tar.gz"
+          name: kube-dnr
+          include: "kube-dnr"
+
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v3.0.3
+        with:
+          files: kube-dnr.tar.gz
+          generate_release_notes: true
