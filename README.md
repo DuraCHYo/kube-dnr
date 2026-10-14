@@ -1,6 +1,6 @@
 # kube-dnr
 
-Kubernetes Dumper-and-Restorer - консольная утилита для бэкапа и восстановления ресурсов Kubernetes кластера.
+Kubernetes Disaster-and-Recovery - консольная утилита для бэкапа и восстановления ресурсов Kubernetes кластера.
 
 ## Возможности
 
