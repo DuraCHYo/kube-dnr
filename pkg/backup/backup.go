@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -114,16 +115,19 @@ func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionReso
 	if err != nil {
 		return err
 	}
+	var excludedResources = [...]string{"Pod", "PodMetrics", "NodeMetrics", "FlowSchema", "PriorityLevelConfiguration", "EndpointSlice", "RuntimeClass", "Lease", "CustomResourceDefinition", "StorageClass", "Event", "ReplicaSet", "ComponentStatus", "Endpoints", "Node"}
 
 	if len(list.Items) == 0 {
 		return nil
 	}
-
+	// Если kind есть в списке исключенных - не сохраняем
+	if slices.Contains(excludedResources[:], kind) {
+		return nil
+	}
 	// Проходим по всем ресурсам
 	for _, item := range list.Items {
 		// Очищаем ресурс от нежелательных полей
 		cleaned := cleanResource(&item)
-
 		// Конвертируем в YAML
 		yamlData, err := sigsyaml.Marshal(cleaned.Object)
 		if err != nil {
@@ -144,8 +148,8 @@ func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionReso
 			return fmt.Errorf("ошибка при добавлении файла в архив: %w", err)
 		}
 	}
-
 	return nil
+
 }
 
 // cleanResource очищает ресурс от метаданных статуса и других полей
