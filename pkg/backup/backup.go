@@ -19,6 +19,12 @@ import (
 	sigsyaml "sigs.k8s.io/yaml"
 )
 
+var excludedResources = []string{
+	"Pod", "PodMetrics", "NodeMetrics", "FlowSchema", "PriorityLevelConfiguration",
+	"EndpointSlice", "RuntimeClass", "Lease", "CustomResourceDefinition",
+	"StorageClass", "Event", "ReplicaSet", "ComponentStatus", "Endpoints", "Node",
+}
+
 // PerformBackup выполняет бэкап ресурсов Kubernetes
 func PerformBackup(kubeconfigPath string, namespaces []string, outputPath string) error {
 	// Получаем REST config
@@ -115,7 +121,6 @@ func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionReso
 	if err != nil {
 		return err
 	}
-	var excludedResources = [...]string{"Pod", "PodMetrics", "NodeMetrics", "FlowSchema", "PriorityLevelConfiguration", "EndpointSlice", "RuntimeClass", "Lease", "CustomResourceDefinition", "StorageClass", "Event", "ReplicaSet", "ComponentStatus", "Endpoints", "Node"}
 
 	if len(list.Items) == 0 {
 		return nil
