@@ -15,24 +15,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7.0.0
         with:
           go-version: "1.27.1"
 
       - name: Build
         run: go build -o kube-dnr
 
-      - uses: ksm2/archive-action@v1
+      - uses: vimtor/action-zip@v1.3
         with:
-          format: "tar.gz"
-          name: kube-dnr
-          include: "kube-dnr"
+          files: "./kube-dnr"
+          dest: "kube-dnr.zip"
 
       - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v3.0.3
         with:
-          files: kube-dnr.tar.gz
+          files: kube-dnr.zip
           generate_release_notes: true
