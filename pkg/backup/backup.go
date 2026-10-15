@@ -166,6 +166,7 @@ func cleanResource(item *unstructured.Unstructured) *unstructured.Unstructured {
 			delete(metadataMap, "generation")
 			delete(metadataMap, "resourceVersion")
 			delete(metadataMap, "managedFields")
+			delete(metadataMap, "ownerReferences")
 
 			// Очищаем annotations
 			if annotations, ok := metadataMap["annotations"].(map[string]interface{}); ok {
@@ -173,7 +174,7 @@ func cleanResource(item *unstructured.Unstructured) *unstructured.Unstructured {
 				delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
 				delete(annotations, "deployment.kubernetes.io/revision")
 				delete(annotations, "kubernetes.io/change-cause")
-				
+
 				// Если после очистки annotations пуст, удаляем поле
 				if len(annotations) == 0 {
 					delete(metadataMap, "annotations")
@@ -184,7 +185,7 @@ func cleanResource(item *unstructured.Unstructured) *unstructured.Unstructured {
 			if labels, ok := metadataMap["labels"].(map[string]interface{}); ok {
 				delete(labels, "pod-template-hash")
 				delete(labels, "controller-uid")
-				
+
 				// Если после очистки labels пуст, удаляем поле
 				if len(labels) == 0 {
 					delete(metadataMap, "labels")
@@ -212,7 +213,7 @@ func addFileToZip(zipWriter *zip.Writer, filePath string, data []byte) error {
 		Name:   filePath,
 		Method: zip.Deflate,
 	}
-	
+
 	writer, err := zipWriter.CreateHeader(header)
 	if err != nil {
 		return err
