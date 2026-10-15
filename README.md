@@ -107,6 +107,7 @@ backup.zip
 - `metadata.generation` - поколение ресурса
 - `metadata.resourceVersion` - версия ресурса
 - `metadata.managedFields` - поля управляемые контроллерами
+- `metadata.ownerReferences` - поля управляемые другими приложениями или операторами
 - Системные аннотации (kubectl.kubernetes.io/last-applied-configuration и др.)
 - Системные лейблы (pod-template-hash, controller-uid и др.)
 - Специфичные поля (например, secrets в ServiceAccount)
