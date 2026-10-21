@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 
+	"kube-dnr/config"
+
 	"github.com/spf13/cobra"
 	"kube-dnr/pkg/backup"
+	"kube-dnr/pkg/s3"
 )
 
 var (
@@ -13,6 +16,7 @@ var (
 	backupNamespaces    []string
 	backupOutput        string
 	backupKubeconfig    string
+	backupUploadS3      bool
 )
 
 var backupCmd = &cobra.Command{
@@ -42,14 +46,26 @@ var backupCmd = &cobra.Command{
 			namespaces = backupNamespaces
 		}
 
+		// Получаем конфиг из контекста
+		cfg := cmd.Context().Value("config").(*config.Config)
+
 		// Выполняем бэкап
-		err := backup.PerformBackup(backupKubeconfig, namespaces, backupOutput)
+		err := backup.PerformBackup(backupKubeconfig, namespaces, backupOutput, cfg)
 		if err != nil {
 			fmt.Printf("Ошибка при создании бэкапа: %v\n", err)
 			os.Exit(1)
 		}
 
 		fmt.Printf("Бэкап успешно создан: %s\n", backupOutput)
+
+		// Загружаем в S3 если указан флаг
+		if backupUploadS3 {
+			err = s3.UploadArchive(cfg, backupOutput)
+			if err != nil {
+				fmt.Printf("Ошибка при загрузке в S3: %v\n", err)
+				os.Exit(1)
+			}
+		}
 	},
 }
 
@@ -58,5 +74,6 @@ func NewCommand() *cobra.Command {
 	backupCmd.Flags().StringSliceVarP(&backupNamespaces, "namespaces", "n", []string{}, "Список неймспейсов для бэкапа (через запятую)")
 	backupCmd.Flags().StringVarP(&backupOutput, "output", "o", "", "Путь к выходному архиву (обязательно)")
 	backupCmd.Flags().StringVar(&backupKubeconfig, "kubeconfig", "", "Путь к kubeconfig файлу (по умолчанию ~/.kube/config)")
+	backupCmd.Flags().BoolVar(&backupUploadS3, "upload-s3", false, "Загрузить бэкап в S3 после создания")
 	return backupCmd
 }

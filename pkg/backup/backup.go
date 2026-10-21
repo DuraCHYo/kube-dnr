@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	"kube-dnr/config"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,45 +23,14 @@ import (
 	sigsyaml "sigs.k8s.io/yaml"
 )
 
-var excludedResources = []string{
-	"Pod", "PodMetrics", "NodeMetrics", "FlowSchema", "PriorityLevelConfiguration",
-	"EndpointSlice", "RuntimeClass", "Lease", "CustomResourceDefinition",
-	"StorageClass", "Event", "ReplicaSet", "ComponentStatus", "Endpoints", "Node", "PersistentVolumeClaim", "PersistentVolume",
-}
-var excludedSubstrings = []string{
-	"sh.helm.release",
-	"kube-root-ca.crt",
-	"istio-ca-root-cert",
-}
-var excludedNamespaces = []string{
-	"argo-cd",
-	"calico-apiserver",
-	"calico-system",
-	"cert-manager",
-	"default",
-	"fluent-bit",
-	"frsystem-agent",
-	"hashicorp",
-	"istio-ingress",
-	"istio-ingress-external",
-	"istio-system",
-	"kiali",
-	"kube-node-lease",
-	"kube-public",
-	"kube-system",
-	"logging",
-	"monitoring",
-	"openebs",
-	"opentelemetry",
-	"sentry",
-	"tigera-operator",
-	"vault",
-	"vault-configure",
-	"x509-certificate-exporter",
-}
-
 // PerformBackup выполняет бэкап ресурсов Kubernetes
-func PerformBackup(kubeconfigPath string, namespaces []string, outputPath string) error {
+func PerformBackup(kubeconfigPath string, namespaces []string, outputPath string, cfg *config.Config) error {
+	// Загружаем конфиг
+
+	excludedResources := cfg.Kubernetes.ExcludedResources
+	excludedSubstrings := cfg.Kubernetes.ExcludedSubstrings
+	excludedNamespaces := cfg.Kubernetes.ExcludedNamespaces
+
 	// Получаем REST config
 	restConfig, err := getRESTConfig(kubeconfigPath)
 	if err != nil {
@@ -113,6 +84,11 @@ func PerformBackup(kubeconfigPath string, namespaces []string, outputPath string
 				continue
 			}
 
+			// Если Kind ресурса в списке исключенных, пропускаем его до запроса к API
+			if slices.Contains(excludedResources, apiResource.Kind) {
+				continue
+			}
+
 			// Создаем GVR (GroupVersionResource)
 			gvr := schema.GroupVersionResource{
 				Group:    gv.Group,
@@ -135,7 +111,12 @@ func PerformBackup(kubeconfigPath string, namespaces []string, outputPath string
 
 			// Бэкапим ресурсы в каждом неймспейсе
 			for _, ns := range nsList {
-				err := backupResource(dynamicClient, gvr, ns, apiResource.Kind, zipWriter)
+				// Пропускаем исключенные неймспейсы до запроса
+				if ns != "" && slices.Contains(excludedNamespaces, ns) {
+					continue
+				}
+
+				err := backupResource(dynamicClient, gvr, ns, apiResource.Kind, excludedSubstrings, zipWriter)
 				if err != nil {
 					fmt.Printf("Предупреждение: ошибка при бэкапе %s в неймспейсе %s: %v\n", apiResource.Name, ns, err)
 					continue
@@ -148,8 +129,9 @@ func PerformBackup(kubeconfigPath string, namespaces []string, outputPath string
 }
 
 // backupResource бэкапит ресурсы определенного типа
-func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, kind string, zipWriter *zip.Writer) error {
+func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, kind string, excludedSubstrings []string, zipWriter *zip.Writer) error {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 	// Получаем список ресурсов
 	list, err := dynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -159,20 +141,14 @@ func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionReso
 	if len(list.Items) == 0 {
 		return nil
 	}
-	// Если kind есть в списке исключенных - не сохраняем
-	if slices.Contains(excludedResources[:], kind) {
-		return nil
-	}
-	// Если namespace есть в списке исключенных - не сохраняем
-	if slices.Contains(excludedNamespaces[:], namespace) {
-		return nil
-	}
+
 	// Проходим по всем ресурсам
 	for _, item := range list.Items {
 		// Если kind == "Secret" и оно равняется названию неймспейса - пропускаем
 		if kind == "Secret" && item.GetName() == namespace {
 			continue
 		}
+
 		// Проверка на содержащиеся подстроки в имени
 		shouldSkip := false
 		for _, sub := range excludedSubstrings {
@@ -209,7 +185,6 @@ func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionReso
 		logger.Info("Файл сохранен", "resource", kind, "file", filePath, "namespace", namespace)
 	}
 	return nil
-
 }
 
 // cleanResource очищает ресурс от метаданных статуса и других полей
@@ -223,7 +198,6 @@ func cleanResource(item *unstructured.Unstructured) *unstructured.Unstructured {
 	metadata, found, err := unstructured.NestedFieldNoCopy(cleaned.Object, "metadata")
 	if found && err == nil {
 		if metadataMap, ok := metadata.(map[string]interface{}); ok {
-			// Удаляем поля которые не нужны для восстановления
 			delete(metadataMap, "uid")
 			delete(metadataMap, "selfLink")
 			delete(metadataMap, "creationTimestamp")
@@ -232,37 +206,29 @@ func cleanResource(item *unstructured.Unstructured) *unstructured.Unstructured {
 			delete(metadataMap, "managedFields")
 			delete(metadataMap, "ownerReferences")
 
-			// Очищаем annotations
 			if annotations, ok := metadataMap["annotations"].(map[string]interface{}); ok {
-				// Удаляем системные аннотации
 				delete(annotations, "kubectl.kubernetes.io/last-applied-configuration")
 				delete(annotations, "deployment.kubernetes.io/revision")
 				delete(annotations, "kubernetes.io/change-cause")
 
-				// Если после очистки annotations пуст, удаляем поле
 				if len(annotations) == 0 {
 					delete(metadataMap, "annotations")
 				}
 			}
 
-			// Очищаем labels - можно удалить специфичные системные лейблы
 			if labels, ok := metadataMap["labels"].(map[string]interface{}); ok {
 				delete(labels, "pod-template-hash")
 				delete(labels, "controller-uid")
 
-				// Если после очистки labels пуст, удаляем поле
 				if len(labels) == 0 {
 					delete(metadataMap, "labels")
 				}
 			}
 
-			// Обновляем metadata
 			cleaned.Object["metadata"] = metadataMap
 		}
 	}
 
-	// Очищаем специфичные поля для разных типов ресурсов
-	// Например, для ServiceAccount удаляем secrets
 	if cleaned.GetKind() == "ServiceAccount" {
 		unstructured.RemoveNestedField(cleaned.Object, "secrets")
 	}
@@ -272,7 +238,6 @@ func cleanResource(item *unstructured.Unstructured) *unstructured.Unstructured {
 
 // addFileToZip добавляет файл в ZIP архив
 func addFileToZip(zipWriter *zip.Writer, filePath string, data []byte) error {
-	// Создаем директории в архиве если нужно
 	header := &zip.FileHeader{
 		Name:   filePath,
 		Method: zip.Deflate,

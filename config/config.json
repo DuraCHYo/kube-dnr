@@ -1,0 +1,62 @@
+{
+     "kubernetes": {
+          "excludedresources": [
+               "Pod",
+               "PodMetrics",
+               "NodeMetrics",
+               "FlowSchema",
+               "PriorityLevelConfiguration",
+               "EndpointSlice",
+               "RuntimeClass",
+               "Lease",
+               "CustomResourceDefinition",
+               "StorageClass",
+               "Event",
+               "ReplicaSet",
+               "ComponentStatus",
+               "Endpoints",
+               "Node",
+               "PersistentVolumeClaim",
+               "PersistentVolume"
+          ],
+          "excludednamespaces": [
+               "argo-cd",
+               "calico-apiserver",
+               "calico-system",
+               "cert-manager",
+               "default",
+               "fluent-bit",
+               "frsystem-agent",
+               "hashicorp",
+               "istio-ingress",
+               "istio-ingress-external",
+               "istio-system",
+               "kiali",
+               "kube-node-lease",
+               "kube-public",
+               "kube-system",
+               "logging",
+               "monitoring",
+               "openebs",
+               "opentelemetry",
+               "sentry",
+               "tigera-operator",
+               "vault",
+               "vault-configure",
+               "x509-certificate-exporter"
+          ],
+          "excludedsubstrings": [
+               "sh.helm.release",
+               "kube-root-ca.crt",
+               "istio-ca-root-cert"
+          ]
+     },
+     "s3": {
+          "bucket": "testbucket",
+          "endpoint": "http://localhost",
+          "region": "us-east-1",
+          "accesskeyid": "my-secret-key_id",
+          "secretaccesskey": "my-secret-access-key",
+          "usessl": false
+     }
+}
