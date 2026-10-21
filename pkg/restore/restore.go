@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,7 @@ import (
 
 // PerformRestore выполняет восстановление ресурсов из архива
 func PerformRestore(kubeconfigPath string, inputPath string) error {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	// Проверяем существование архива
 	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
 		return fmt.Errorf("файл архива не существует: %s", inputPath)
@@ -89,8 +91,7 @@ func PerformRestore(kubeconfigPath string, inputPath string) error {
 			fmt.Printf("Предупреждение: ошибка при восстановлении ресурса из %s: %v\n", file.Name, err)
 			continue
 		}
-
-		fmt.Printf("Восстановлен: %s/%s\n", obj.GetKind(), obj.GetName())
+		logger.Info("Восстановлен", "kind", obj.GetKind(), "object", obj.GetName(), "namespace", namespace)
 	}
 
 	return nil
@@ -179,7 +180,7 @@ func getResourceNameFromKind(kind string) string {
 	// Простое преобразование: Pod -> pods, Deployment -> deployments
 	// Для более точного преобразования можно использовать discovery API
 	kindLower := strings.ToLower(kind)
-	
+
 	// Специальные случаи
 	switch kind {
 	case "Endpoints":
@@ -215,7 +216,7 @@ func getResourceNameFromKind(kind string) string {
 	case "CronJob":
 		return "cronjobs"
 	}
-	
+
 	// По умолчанию добавляем 's' если заканчивается не на 's'
 	if strings.HasSuffix(kindLower, "s") {
 		return kindLower

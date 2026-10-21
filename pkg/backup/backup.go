@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -148,6 +149,7 @@ func PerformBackup(kubeconfigPath string, namespaces []string, outputPath string
 
 // backupResource бэкапит ресурсы определенного типа
 func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, namespace, kind string, zipWriter *zip.Writer) error {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	// Получаем список ресурсов
 	list, err := dynamicClient.Resource(gvr).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -167,7 +169,7 @@ func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionReso
 	}
 	// Проходим по всем ресурсам
 	for _, item := range list.Items {
-		// Если kind="Secret" и оно равняется названию неймспейса - пропускаем
+		// Если kind == "Secret" и оно равняется названию неймспейса - пропускаем
 		if kind == "Secret" && item.GetName() == namespace {
 			continue
 		}
@@ -204,6 +206,7 @@ func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionReso
 		if err != nil {
 			return fmt.Errorf("ошибка при добавлении файла в архив: %w", err)
 		}
+		logger.Info("Файл сохранен", "resource", kind, "file", filePath, "namespace", namespace)
 	}
 	return nil
 
