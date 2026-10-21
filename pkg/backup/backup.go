@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -22,7 +23,38 @@ import (
 var excludedResources = []string{
 	"Pod", "PodMetrics", "NodeMetrics", "FlowSchema", "PriorityLevelConfiguration",
 	"EndpointSlice", "RuntimeClass", "Lease", "CustomResourceDefinition",
-	"StorageClass", "Event", "ReplicaSet", "ComponentStatus", "Endpoints", "Node",
+	"StorageClass", "Event", "ReplicaSet", "ComponentStatus", "Endpoints", "Node", "PersistentVolumeClaim", "PersistentVolume",
+}
+var excludedSubstrings = []string{
+	"sh.helm.release",
+	"kube-root-ca.crt",
+	"istio-ca-root-cert",
+}
+var excludedNamespaces = []string{
+	"argo-cd",
+	"calico-apiserver",
+	"calico-system",
+	"cert-manager",
+	"default",
+	"fluent-bit",
+	"frsystem-agent",
+	"hashicorp",
+	"istio-ingress",
+	"istio-ingress-external",
+	"istio-system",
+	"kiali",
+	"kube-node-lease",
+	"kube-public",
+	"kube-system",
+	"logging",
+	"monitoring",
+	"openebs",
+	"opentelemetry",
+	"sentry",
+	"tigera-operator",
+	"vault",
+	"vault-configure",
+	"x509-certificate-exporter",
 }
 
 // PerformBackup выполняет бэкап ресурсов Kubernetes
@@ -129,8 +161,28 @@ func backupResource(dynamicClient dynamic.Interface, gvr schema.GroupVersionReso
 	if slices.Contains(excludedResources[:], kind) {
 		return nil
 	}
+	// Если namespace есть в списке исключенных - не сохраняем
+	if slices.Contains(excludedNamespaces[:], namespace) {
+		return nil
+	}
 	// Проходим по всем ресурсам
 	for _, item := range list.Items {
+		// Если kind="Secret" и оно равняется названию неймспейса - пропускаем
+		if kind == "Secret" && item.GetName() == namespace {
+			continue
+		}
+		// Проверка на содержащиеся подстроки в имени
+		shouldSkip := false
+		for _, sub := range excludedSubstrings {
+			if strings.Contains(item.GetName(), sub) {
+				shouldSkip = true
+				break
+			}
+		}
+		if shouldSkip {
+			continue
+		}
+
 		// Очищаем ресурс от нежелательных полей
 		cleaned := cleanResource(&item)
 		// Конвертируем в YAML
