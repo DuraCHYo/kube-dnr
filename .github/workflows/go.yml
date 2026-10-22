@@ -22,18 +22,34 @@ jobs:
         with:
           go-version: '1.27.1'
 
-      - name: Build
+      - name: Build (Linux)
         env:
           CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
         run: go build -o kube-dnr
 
       - uses: vimtor/action-zip@v1.3
         with:
           files: './kube-dnr'
-          dest: 'kube-dnr.zip'
+          dest: 'kube-dnr-linux.zip'
+
+      - name: Build (Windows)
+        env:
+          CGO_ENABLED: '0'
+          GOOS: windows
+          GOARCH: amd64
+        run: go build -o kube-dnr.exe
+
+      - uses: vimtor/action-zip@v1.3
+        with:
+          files: './kube-dnr.exe'
+          dest: 'kube-dnr-windows.zip'
 
       - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v3.0.3
         with:
-          files: kube-dnr.zip
+          files: |
+            kube-dnr-linux.zip
+            kube-dnr-windows.zip
           generate_release_notes: true
