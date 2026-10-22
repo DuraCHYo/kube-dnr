@@ -25,7 +25,11 @@ var restoreCmd = &cobra.Command{
 Использует KUBECONFIG для подключения к целевому кластеру.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Получаем конфиг из контекста
-		cfg := cmd.Context().Value("config").(*config.Config)
+		cfg, err := config.FromContext(cmd.Context())
+		if err != nil {
+			fmt.Printf("Ошибка при получении конфигурации: %v\n", err)
+			os.Exit(1)
+		}
 
 		inputPath := restoreInput
 
@@ -34,14 +38,22 @@ var restoreCmd = &cobra.Command{
 			// Если input не указан, используем последний объект
 			if inputPath == "" {
 				// Создаем временный файл
-				tmpFile := fmt.Sprintf("/tmp/kube-dnr-restore-%d.zip", os.Getpid())
-				err := s3.DownloadArchive(cfg, restoreS3Object, tmpFile)
+				tmpFile, err := os.CreateTemp("", "kube-dnr-restore-*.zip")
 				if err != nil {
+					fmt.Printf("Ошибка при создании временного файла: %v\n", err)
+					os.Exit(1)
+				}
+				tmpPath := tmpFile.Name()
+				tmpFile.Close()
+
+				err = s3.DownloadArchive(cfg, restoreS3Object, tmpPath)
+				if err != nil {
+					os.Remove(tmpPath) // Убираем недокачанный файл
 					fmt.Printf("Ошибка при скачивании из S3: %v\n", err)
 					os.Exit(1)
 				}
-				inputPath = tmpFile
-				defer os.Remove(tmpFile) // Удаляем временный файл после использования
+				defer os.Remove(tmpPath) // Удаляем временный файл после использования
+				inputPath = tmpPath
 			} else {
 				// Если input указан, скачиваем в этот путь
 				err := s3.DownloadArchive(cfg, restoreS3Object, inputPath)
@@ -60,8 +72,7 @@ var restoreCmd = &cobra.Command{
 		}
 
 		// Выполняем восстановление
-		err := restore.PerformRestore(restoreKubeconfig, inputPath)
-		if err != nil {
+		if err := restore.PerformRestore(cmd.Context(), restoreKubeconfig, inputPath); err != nil {
 			fmt.Printf("Ошибка при восстановлении: %v\n", err)
 			os.Exit(1)
 		}

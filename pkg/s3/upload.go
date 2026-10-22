@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // UploadArchive загружает архив в S3
@@ -23,20 +22,13 @@ func UploadArchive(cfg *config.Config, filePath string) error {
 		return fmt.Errorf("файл не существует: %s", filePath)
 	}
 
-	endpoint := cfg.S3.Endpoint
-	accessKeyID := cfg.S3.AccessKeyID
-	secretAccessKey := cfg.S3.SecretAccessKey
-	useSSL := cfg.S3.UseSSL
 	bucketName := cfg.S3.Bucket
 	location := cfg.S3.Region
 
 	// Создаем клиент MinIO
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useSSL,
-	})
+	minioClient, err := newClient(cfg)
 	if err != nil {
-		return fmt.Errorf("ошибка при создании S3 клиента: %w", err)
+		return err
 	}
 
 	// Проверяем существование бакета

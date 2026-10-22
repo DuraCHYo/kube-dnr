@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // DownloadArchive скачивает архив из S3
@@ -18,19 +17,12 @@ func DownloadArchive(cfg *config.Config, objectName string, outputPath string) e
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	endpoint := cfg.S3.Endpoint
-	accessKeyID := cfg.S3.AccessKeyID
-	secretAccessKey := cfg.S3.SecretAccessKey
-	useSSL := cfg.S3.UseSSL
 	bucketName := cfg.S3.Bucket
 
 	// Создаем клиент MinIO
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useSSL,
-	})
+	minioClient, err := newClient(cfg)
 	if err != nil {
-		return fmt.Errorf("ошибка при создании S3 клиента: %w", err)
+		return err
 	}
 
 	// Проверяем существование бакета
@@ -112,19 +104,12 @@ func getLatestObject(ctx context.Context, client *minio.Client, bucketName strin
 func ListObjects(cfg *config.Config) ([]string, error) {
 	ctx := context.Background()
 
-	endpoint := cfg.S3.Endpoint
-	accessKeyID := cfg.S3.AccessKeyID
-	secretAccessKey := cfg.S3.SecretAccessKey
-	useSSL := cfg.S3.UseSSL
 	bucketName := cfg.S3.Bucket
 
 	// Создаем клиент MinIO
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useSSL,
-	})
+	minioClient, err := newClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка при создании S3 клиента: %w", err)
+		return nil, err
 	}
 
 	// Проверяем существование бакета
@@ -155,19 +140,12 @@ func ListObjects(cfg *config.Config) ([]string, error) {
 func DownloadObject(cfg *config.Config, objectName string) (io.ReadCloser, error) {
 	ctx := context.Background()
 
-	endpoint := cfg.S3.Endpoint
-	accessKeyID := cfg.S3.AccessKeyID
-	secretAccessKey := cfg.S3.SecretAccessKey
-	useSSL := cfg.S3.UseSSL
 	bucketName := cfg.S3.Bucket
 
 	// Создаем клиент MinIO
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useSSL,
-	})
+	minioClient, err := newClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("ошибка при создании S3 клиента: %w", err)
+		return nil, err
 	}
 
 	// Получаем объект

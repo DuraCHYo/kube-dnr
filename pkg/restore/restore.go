@@ -7,30 +7,32 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"kube-dnr/pkg/kubeutil"
+
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	sigsyaml "sigs.k8s.io/yaml"
 )
 
 // PerformRestore выполняет восстановление ресурсов из архива
-func PerformRestore(kubeconfigPath string, inputPath string) error {
+func PerformRestore(ctx context.Context, kubeconfigPath string, inputPath string) error {
+	// Логгер создаем один раз на весь сеанс работы
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
 	// Проверяем существование архива
-	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
-		return fmt.Errorf("файл архива не существует: %s", inputPath)
+	if _, err := os.Stat(inputPath); err != nil {
+		return fmt.Errorf("ошибка при доступе к файлу архива %s: %w", inputPath, err)
 	}
 
 	// Получаем REST config
-	restConfig, err := getRESTConfig(kubeconfigPath)
+	restConfig, err := kubeutil.GetRESTConfig(kubeconfigPath)
 	if err != nil {
 		return fmt.Errorf("ошибка при получении конфигурации: %w", err)
 	}
@@ -63,14 +65,14 @@ func PerformRestore(kubeconfigPath string, inputPath string) error {
 		// Читаем файл
 		fileReader, err := file.Open()
 		if err != nil {
-			fmt.Printf("Предупреждение: не удалось открыть файл %s: %v\n", file.Name, err)
+			logger.Warn("Не удалось открыть файл", "file", file.Name, "err", err)
 			continue
 		}
 
 		data, err := io.ReadAll(fileReader)
 		fileReader.Close()
 		if err != nil {
-			fmt.Printf("Предупреждение: не удалось прочитать файл %s: %v\n", file.Name, err)
+			logger.Warn("Не удалось прочитать файл", "file", file.Name, "err", err)
 			continue
 		}
 
@@ -78,7 +80,7 @@ func PerformRestore(kubeconfigPath string, inputPath string) error {
 		obj := &unstructured.Unstructured{}
 		err = sigsyaml.Unmarshal(data, &obj.Object)
 		if err != nil {
-			fmt.Printf("Предупреждение: не удалось декодировать файл %s: %v\n", file.Name, err)
+			logger.Warn("Не удалось декодировать файл", "file", file.Name, "err", err)
 			continue
 		}
 
@@ -86,9 +88,9 @@ func PerformRestore(kubeconfigPath string, inputPath string) error {
 		namespace := extractNamespaceFromPath(file.Name)
 
 		// Восстанавливаем ресурс
-		err = restoreResource(dynamicClient, clientset, obj, namespace)
+		err = restoreResource(ctx, dynamicClient, clientset, obj, namespace, logger)
 		if err != nil {
-			fmt.Printf("Предупреждение: ошибка при восстановлении ресурса из %s: %v\n", file.Name, err)
+			logger.Warn("Ошибка при восстановлении ресурса", "file", file.Name, "err", err)
 			continue
 		}
 		logger.Info("Восстановлен", "kind", obj.GetKind(), "object", obj.GetName(), "namespace", namespace)
@@ -98,66 +100,115 @@ func PerformRestore(kubeconfigPath string, inputPath string) error {
 }
 
 // restoreResource восстанавливает отдельный ресурс
-func restoreResource(dynamicClient dynamic.Interface, clientset *kubernetes.Clientset, obj *unstructured.Unstructured, namespace string) error {
+func restoreResource(ctx context.Context, dynamicClient dynamic.Interface, clientset *kubernetes.Clientset, obj *unstructured.Unstructured, namespace string, logger *slog.Logger) error {
 	gvk := obj.GroupVersionKind()
-	gvr := schema.GroupVersionResource{
-		Group:    gvk.Group,
-		Version:  gvk.Version,
-		Resource: getResourceNameFromKind(gvk.Kind),
-	}
+
+	// Приоритет: GVR из аннотации бэкапа, затем эвристика Kind -> Resource name
+	gvr := gvrFromBackup(obj)
 
 	// Для кластерных ресурсов используем пустой неймспейс
 	if namespace == "" {
 		namespace = obj.GetNamespace()
 	}
 
+	// Убираем служебную аннотацию перед отправкой в кластер
+	removeBackupAnnotation(obj)
+
 	// Проверяем, существует ли ресурс
-	_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(context.TODO(), obj.GetName(), metav1.GetOptions{})
-	if err == nil {
-		// Ресурс существует - обновляем
-		_, err = dynamicClient.Resource(gvr).Namespace(namespace).Update(context.TODO(), obj, metav1.UpdateOptions{})
+	_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(ctx, obj.GetName(), metav1.GetOptions{})
+	switch {
+	case err == nil:
+		// Ресурс существует
+		if reason, immutable := immutableSpecKinds[gvk.Kind]; immutable {
+			// У таких ресурсов spec immutable: update существующего объекта будет ошибка, скипаем
+			logger.Warn("Ресурс существует, обновление пропущено",
+				"kind", gvk.Kind,
+				"name", obj.GetName(),
+				"namespace", namespace,
+				"reason", reason)
+			return nil
+		}
+
+		// Обновляем
+		_, err = dynamicClient.Resource(gvr).Namespace(namespace).Update(ctx, obj, metav1.UpdateOptions{})
 		if err != nil {
 			return fmt.Errorf("ошибка при обновлении ресурса: %w", err)
 		}
-	} else {
-		// Ресурс не существует - создаем
-		// Сначала создаем неймспейс если нужно
+
+	case apierrors.IsNotFound(err):
+		// Ресурс не существует - создаем. Сначала создаем неймспейс если нужно
 		if namespace != "" && gvk.Kind != "Namespace" {
-			err = ensureNamespaceExists(clientset, namespace)
+			err = ensureNamespaceExists(ctx, clientset, namespace)
 			if err != nil {
 				return fmt.Errorf("ошибка при создании неймспейса %s: %w", namespace, err)
 			}
 		}
 
-		_, err = dynamicClient.Resource(gvr).Namespace(namespace).Create(context.TODO(), obj, metav1.CreateOptions{})
+		_, err = dynamicClient.Resource(gvr).Namespace(namespace).Create(ctx, obj, metav1.CreateOptions{})
 		if err != nil {
 			return fmt.Errorf("ошибка при создании ресурса: %w", err)
 		}
+
+	default:
+		// Любая ошибка кроме NotFound - выводим
+		return fmt.Errorf("ошибка при проверке существования ресурса: %w", err)
 	}
 
 	return nil
 }
 
-// ensureNamespaceExists создает неймспейс если он не существует
-func ensureNamespaceExists(clientset *kubernetes.Clientset, namespace string) error {
-	_, err := clientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
-	if err == nil {
-		return nil // Неймспейс уже существует
-	}
+var immutableSpecKinds = map[string]string{
+	"PersistentVolume":      "spec иммутабелен",
+	"PersistentVolumeClaim": "spec иммутабелен (кроме увеличения размера диска)",
+	"Pod":                   "spec иммутабелен (кроме ephemeral containers)",
+	"Job":                   "spec иммутабелен (кроме suspend/parallelism)",
+}
 
-	// Создаем неймспейс
+// ensureNamespaceExists создает неймспейс если он не существует
+func ensureNamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, namespace string) error {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
 		},
 	}
 
-	_, err = clientset.CoreV1().Namespaces().Create(context.TODO(), ns, metav1.CreateOptions{})
-	if err != nil {
+	// Создаем неймспейс; если он уже существует (в том числе из-за гонки) - это не ошибка
+	_, err := clientset.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
 	return nil
+}
+
+// gvrFromBackup определяет GVR ресурса: приоритет у аннотации из бэкапа, затем резервный вариант на kind => ResourceName
+func gvrFromBackup(obj *unstructured.Unstructured) schema.GroupVersionResource {
+	if gvrStr := obj.GetAnnotations()[kubeutil.BackupGVRAnnotation]; gvrStr != "" {
+		if gvr, ok := kubeutil.GVRFromString(gvrStr); ok {
+			return gvr
+		}
+	}
+
+	gvk := obj.GroupVersionKind()
+	return schema.GroupVersionResource{
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Resource: getResourceNameFromKind(gvk.Kind),
+	}
+}
+
+// removeBackupAnnotation удаляет служебную аннотацию бэкапа из ресурса
+func removeBackupAnnotation(obj *unstructured.Unstructured) {
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		return
+	}
+
+	delete(annotations, kubeutil.BackupGVRAnnotation)
+	if len(annotations) == 0 {
+		annotations = nil
+	}
+	obj.SetAnnotations(annotations)
 }
 
 // extractNamespaceFromPath извлекает неймспейс из пути файла в архиве
@@ -178,7 +229,7 @@ func extractNamespaceFromPath(path string) string {
 // getResourceNameFromKind конвертирует Kind в Resource name
 func getResourceNameFromKind(kind string) string {
 	// Простое преобразование: Pod -> pods, Deployment -> deployments
-	// Для более точного преобразования можно использовать discovery API
+	// Используется как fallback, если в манифесте нет аннотации с GVR
 	kindLower := strings.ToLower(kind)
 
 	// Специальные случаи
@@ -222,23 +273,4 @@ func getResourceNameFromKind(kind string) string {
 		return kindLower
 	}
 	return kindLower + "s"
-}
-
-// getRESTConfig получает REST config из kubeconfig
-func getRESTConfig(kubeconfigPath string) (*rest.Config, error) {
-	if kubeconfigPath == "" {
-		if home := os.Getenv("HOME"); home != "" {
-			kubeconfigPath = filepath.Join(home, ".kube", "config")
-		}
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	config.QPS = 50
-	config.Burst = 100
-
-	return config, nil
 }

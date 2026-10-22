@@ -47,11 +47,14 @@ var backupCmd = &cobra.Command{
 		}
 
 		// Получаем конфиг из контекста
-		cfg := cmd.Context().Value("config").(*config.Config)
+		cfg, err := config.FromContext(cmd.Context())
+		if err != nil {
+			fmt.Printf("Ошибка при получении конфигурации: %v\n", err)
+			os.Exit(1)
+		}
 
 		// Выполняем бэкап
-		err := backup.PerformBackup(backupKubeconfig, namespaces, backupOutput, cfg)
-		if err != nil {
+		if err := backup.PerformBackup(cmd.Context(), backupKubeconfig, namespaces, backupOutput, cfg); err != nil {
 			fmt.Printf("Ошибка при создании бэкапа: %v\n", err)
 			os.Exit(1)
 		}
@@ -60,8 +63,7 @@ var backupCmd = &cobra.Command{
 
 		// Загружаем в S3 если указан флаг
 		if backupUploadS3 {
-			err = s3.UploadArchive(cfg, backupOutput)
-			if err != nil {
+			if err := s3.UploadArchive(cfg, backupOutput); err != nil {
 				fmt.Printf("Ошибка при загрузке в S3: %v\n", err)
 				os.Exit(1)
 			}

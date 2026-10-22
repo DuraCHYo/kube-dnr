@@ -37,7 +37,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("ошибка при загрузке конфигурации: %w", err)
 		}
 		// Сохраняем конфиг в контексте команды
-		cmd.SetContext(context.WithValue(cmd.Context(), "config", cfg))
+		cmd.SetContext(config.NewContext(context.Background(), cfg))
 		return nil
 	},
 }

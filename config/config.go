@@ -1,9 +1,29 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 )
+
+// ctxKey - типизированный ключ для передачи конфига через context
+// (строковые ключи контекста могут конфликтовать между пакетами)
+type ctxKey struct{}
+
+// NewContext сохраняет конфиг в контексте
+func NewContext(ctx context.Context, cfg *Config) context.Context {
+	return context.WithValue(ctx, ctxKey{}, cfg)
+}
+
+// FromContext достает конфиг из контекста
+func FromContext(ctx context.Context) (*Config, error) {
+	cfg, ok := ctx.Value(ctxKey{}).(*Config)
+	if !ok || cfg == nil {
+		return nil, fmt.Errorf("конфигурация не найдена в контексте команды")
+	}
+	return cfg, nil
+}
 
 type Config struct {
 	Kubernetes KubernetesConfig `json:"kubernetes"`
