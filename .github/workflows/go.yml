@@ -1,7 +1,4 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
-
-name: Go
+name: Release
 
 on:
   push:
@@ -12,44 +9,26 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v7.0.1
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          # GoReleaser нужна полная история: теги и коммиты для чейнджлога
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v7.0.0
         with:
-          go-version: '1.27.1'
+          go-version-file: go.mod
+          cache: true
 
-      - name: Build (Linux)
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
         env:
-          CGO_ENABLED: '0'
-          GOOS: linux
-          GOARCH: amd64
-        run: go build -o kube-dnr
-
-      - uses: vimtor/action-zip@v1.3
-        with:
-          files: './kube-dnr'
-          dest: 'kube-dnr-linux.zip'
-
-      - name: Build (Windows)
-        env:
-          CGO_ENABLED: '0'
-          GOOS: windows
-          GOARCH: amd64
-        run: go build -o kube-dnr.exe
-
-      - uses: vimtor/action-zip@v1.3
-        with:
-          files: './kube-dnr.exe'
-          dest: 'kube-dnr-windows.zip'
-
-      - name: Create Release and Upload Asset
-        uses: softprops/action-gh-release@v3.0.3
-        with:
-          files: |
-            kube-dnr-linux.zip
-            kube-dnr-windows.zip
-          generate_release_notes: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

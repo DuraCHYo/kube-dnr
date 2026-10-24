@@ -35,3 +35,5 @@ go.work.sum
 # Backup files
 output*
 kube-dnr
+# Added by goreleaser init:
+dist/

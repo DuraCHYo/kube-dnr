@@ -14,6 +14,10 @@ import (
 
 var (
 	configPath string
+
+	// version подставляется при сборке через
+	// -ldflags "-X kube-dnr/cmd.version=<version>".
+	version = "dev"
 )
 
 var rootCmd = &cobra.Command{
@@ -43,6 +47,10 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.Version = version
+	rootCmd.SetVersionTemplate(`kube-dnr {{.Version}}
+`)
+
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Путь к конфигурационному файлу (обязательно)")
 	rootCmd.AddCommand(backupcmd.NewCommand())
 	rootCmd.AddCommand(restorecmd.NewCommand())
