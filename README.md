@@ -1,32 +1,34 @@
 # kube-dnr
 
-Kubernetes Disaster-and-Recovery - консольная утилита для бэкапа и восстановления ресурсов Kubernetes кластера.
+[Русский](README.ru.md) | **English**
 
-## Возможности
+Kubernetes Disaster-and-Recovery - a command-line utility for backing up and restoring Kubernetes cluster resources.
 
-- **Бэкап всех ресурсов кластера** с возможностью выбора конкретных неймспейсов
-- **Очистка манифестов** от метаданных статуса, системных аннотаций и других полей
-- **Сохранение в ZIP архив** с организованной структурой по неймспейсам
-- **Восстановление в другой кластер** с автоматическим созданием неймспейсов
-- **Поддержка всех типов ресурсов** через Kubernetes Discovery API
-- **Гибкая конфигурация** через JSON файл для исключения ресурсов, неймспейсов и подстрок
+## Features
 
-## Установка
+- **Backup of all cluster resources** with the ability to select specific namespaces
+- **Manifest cleanup** of status metadata, system annotations and other fields
+- **Saving to a ZIP archive** with an organized structure by namespace
+- **Restore into another cluster** with automatic namespace creation
+- **Support for all resource types** via the Kubernetes Discovery API
+- **Flexible configuration** through a JSON file to exclude resources, namespaces and substrings
+
+## Installation
 
 ```bash
 go build -o kube-dnr
 ```
 
-## Конфигурация
+## Configuration
 
-Конфигурация задается через JSON файл, который указывается с помощью флага `--config`. Конфигурационный файл позволяет:
+Configuration is provided via a JSON file specified with the `--config` flag. The configuration file allows you to:
 
-- Исключать определенные типы ресурсов из бэкапа
-- Исключать определенные неймспейсы
-- Исключать ресурсы по подстрокам в имени
-- Настраивать параметры S3 для загрузки бэкапов
+- Exclude specific resource types from the backup
+- Exclude specific namespaces
+- Exclude resources by substrings in their names
+- Configure S3 parameters for uploading backups
 
-Пример конфигурационного файла `config/config.json`:
+Example configuration file `config/config.json`:
 
 ```json
 {
@@ -59,90 +61,90 @@ go build -o kube-dnr
 }
 ```
 
-### Поля конфигурации
+### Configuration fields
 
 #### kubernetes
-- `excludedresources` - список типов ресурсов (Kind), которые будут исключены из бэкапа
-- `excludednamespaces` - список неймспейсов, которые будут пропущены при бэкапе
-- `excludedsubstrings` - список подстрок; ресурсы, содержащие эти подстроки в имени, будут пропущены
+- `excludedresources` - list of resource types (Kind) to exclude from the backup
+- `excludednamespaces` - list of namespaces to skip during backup
+- `excludedsubstrings` - list of substrings; resources whose names contain them will be skipped
 
 #### s3
-- `bucket` - имя S3 бакета для хранения бэкапов
-- `endpoint` - URL endpoint S3 совместимого хранилища
-- `region` - регион S3
-- `accesskeyid` - ключ доступа
-- `secretaccesskey` - секретный ключ
-- `usessl` - использовать SSL для подключения
+- `bucket` - name of the S3 bucket used to store backups
+- `endpoint` - endpoint URL of the S3-compatible storage
+- `region` - S3 region
+- `accesskeyid` - access key
+- `secretaccesskey` - secret key
+- `usessl` - use SSL for the connection
 
-## Использование
+## Usage
 
-### Режим бэкапа
+### Backup mode
 
-Создание бэкапа всех неймспейсов кластера:
+Back up all namespaces in the cluster:
 
 ```bash
 ./kube-dnr --config config/config.json backup -A -o backup.zip
 ```
 
-Создание бэкапа конкретных неймспейсов:
+Back up specific namespaces:
 
 ```bash
 ./kube-dnr --config config/config.json backup -n default,kube-system -o backup.zip
 ```
 
-Создание бэкапа с указанием кастомного kubeconfig:
+Back up using a custom kubeconfig:
 
 ```bash
 ./kube-dnr --config config/config.json backup -A -o backup.zip --kubeconfig /path/to/kubeconfig
 ```
 
-#### Флаги команды backup
+#### backup command flags
 
-- `-A, --all-namespaces` - Бэкапить все неймспейсы кластера
-- `-n, --namespaces` - Список неймспейсов для бэкапа (через запятую)
-- `-o, --output` - Путь к выходному архиву (обязательно)
-- `--kubeconfig` - Путь к kubeconfig файлу (по умолчанию ~/.kube/config)
-- `--upload-s3` - Загрузить бэкап в S3 после создания (требует настройки S3 в конфиге)
+- `-A, --all-namespaces` - Back up all cluster namespaces
+- `-n, --namespaces` - Comma-separated list of namespaces to back up
+- `-o, --output` - Path to the output archive (required)
+- `--kubeconfig` - Path to the kubeconfig file (defaults to ~/.kube/config)
+- `--upload-s3` - Upload the backup to S3 after creation (requires S3 configuration)
 
-#### Глобальные флаги
+#### Global flags
 
-- `--config` - Путь к конфигурационному файлу (обязательно)
+- `--config` - Path to the configuration file (required)
 
-### Режим восстановления
+### Restore mode
 
-Восстановление из архива в текущий кластер (определяется из KUBECONFIG):
+Restore from an archive into the current cluster (taken from KUBECONFIG):
 
 ```bash
 ./kube-dnr --config config/config.json restore -i backup.zip
 ```
 
-Восстановление с указанием другого kubeconfig:
+Restore using a different kubeconfig:
 
 ```bash
 export KUBECONFIG=/path/to/other-cluster/config
 ./kube-dnr --config config/config.json restore -i backup.zip
 ```
 
-Или:
+Or:
 
 ```bash
 ./kube-dnr --config config/config.json restore -i backup.zip --kubeconfig /path/to/other-cluster/config
 ```
 
-#### Флаги команды restore
+#### restore command flags
 
-- `-i, --input` - Путь к архиву бэкапа (обязательно, если не используется --download-s3)
-- `--kubeconfig` - Путь к kubeconfig файлу (по умолчанию ~/.kube/config)
-- `--download-s3` - Скачать бэкап из S3 (требует настройки S3 в конфиге)
-- `--s3-object` - Имя объекта в S3 (если не указано, используется последний объект)
+- `-i, --input` - Path to the backup archive (required unless --download-s3 is used)
+- `--kubeconfig` - Path to the kubeconfig file (defaults to ~/.kube/config)
+- `--download-s3` - Download the backup from S3 (requires S3 configuration)
+- `--s3-object` - Name of the S3 object (the latest object is used if not specified)
 
-#### Глобальные флаги
+#### Global flags
 
-- `--config` - Путь к конфигурационному файлу (обязательно)
+- `--config` - Path to the configuration file (required)
 
-## Структура архива
+## Archive structure
 
-Архив бэкапа организован следующим образом:
+The backup archive is organized as follows:
 
 ```
 backup.zip
@@ -165,70 +167,70 @@ backup.zip
         └── default.yaml
 ```
 
-## Что очищается из манифестов
+## What is stripped from manifests
 
-При бэкапе из ресурсов удаляются следующие поля для обеспечения переносимости:
+During backup, the following fields are removed from resources to ensure portability:
 
-- `status` - статус ресурса
-- `metadata.uid` - уникальный идентификатор
-- `metadata.selfLink` - ссылка на ресурс
-- `metadata.creationTimestamp` - время создания
-- `metadata.generation` - поколение ресурса
-- `metadata.resourceVersion` - версия ресурса
-- `metadata.managedFields` - поля управляемые контроллерами
-- `metadata.ownerReferences` - поля управляемые другими приложениями или операторами
-- Системные аннотации (kubectl.kubernetes.io/last-applied-configuration и др.)
-- Системные лейблы (pod-template-hash, controller-uid и др.)
-- Специфичные поля (например, secrets в ServiceAccount)
+- `status` - resource status
+- `metadata.uid` - unique identifier
+- `metadata.selfLink` - reference to the resource
+- `metadata.creationTimestamp` - creation time
+- `metadata.generation` - resource generation
+- `metadata.resourceVersion` - resource version
+- `metadata.managedFields` - fields managed by controllers
+- `metadata.ownerReferences` - fields managed by other applications or operators
+- System annotations (kubectl.kubernetes.io/last-applied-configuration and others)
+- System labels (pod-template-hash, controller-uid and others)
+- Resource-specific fields (e.g. secrets in ServiceAccount)
 
-## Примеры
+## Examples
 
-### Полный бэкап и восстановление
+### Full backup and restore
 
 ```bash
-# Бэкап всех ресурсов кластера
+# Back up all cluster resources
 ./kube-dnr --config config/config.json backup -A -o full-backup.zip
 
-# Восстановление в другой кластер
+# Restore into another cluster
 export KUBECONFIG=/path/to/new-cluster/config
 ./kube-dnr --config config/config.json restore -i full-backup.zip
 ```
 
-### Бэкап конкретного приложения
+### Back up a single application
 
 ```bash
-# Бэкап только неймспейса с приложением
+# Back up only the application namespace
 ./kube-dnr --config config/config.json backup -n my-app -o my-app-backup.zip
 
-# Восстановление в другом кластере
+# Restore into another cluster
 ./kube-dnr --config config/config.json restore -i my-app-backup.zip --kubeconfig /path/to/new-cluster/config
 ```
 
-### Бэкап с загрузкой в S3
+### Backup with upload to S3
 
 ```bash
-# Бэкап всех ресурсов и загрузка в S3
+# Back up all resources and upload to S3
 ./kube-dnr --config config/config.json backup -A -o backup.zip --upload-s3
 ```
 
-### Восстановление из S3
+### Restore from S3
 
 ```bash
-# Восстановление из последнего бэкапа в S3
+# Restore from the latest backup in S3
 ./kube-dnr --config config/config.json restore --download-s3
 
-# Восстановление из конкретного объекта в S3
+# Restore from a specific object in S3
 ./kube-dnr --config config/config.json restore --download-s3 --s3-object 20260121-150405/backup.zip
 ```
 
-## Требования
+## Requirements
 
-- Go 1.27.1 или выше
-- Доступ к Kubernetes кластеру через kubeconfig
-- Необходимые права RBAC для:
-  - Бэкап: `list` на всех ресурсах
-  - Восстановление: `create`, `update`, `get` на всех ресурсах
+- Go 1.27.1 or newer
+- Access to a Kubernetes cluster via kubeconfig
+- Required RBAC permissions for:
+  - Backup: `list` on all resources
+  - Restore: `create`, `update`, `get` on all resources
 
-## Лицензия
+## License
 
-См. файл LICENSE
+See the LICENSE file
