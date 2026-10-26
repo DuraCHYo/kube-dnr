@@ -37,3 +37,4 @@ output*
 kube-dnr
 # Added by goreleaser init:
 dist/
+!charts/*
