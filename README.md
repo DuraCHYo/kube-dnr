@@ -19,6 +19,23 @@ Kubernetes Disaster-and-Recovery - a command-line utility for backing up and res
 go build -o kube-dnr
 ```
 
+### Docker
+
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published to GitHub Container Registry on every release:
+
+```bash
+docker run --rm \
+  -v "$PWD/config.json:/config.json:ro" \
+  -v "$HOME/.kube/config:/home/nonroot/.kube/config:ro" \
+  -v "$PWD/backups:/tmp/backups" \
+  ghcr.io/durachyo/kube-dnr:latest \
+  --config /config.json backup -A -o /tmp/backups/backup.zip
+```
+
+The image is based on distroless, runs as a non-root user and does not contain a shell.
+
+When the container runs inside a Kubernetes pod, no kubeconfig is needed: the CLI automatically uses the pod's ServiceAccount. Grant it the required RBAC permissions.
+
 ## Configuration
 
 Configuration is provided via a JSON file specified with the `--config` flag. The configuration file allows you to:
@@ -103,7 +120,7 @@ Back up using a custom kubeconfig:
 - `-A, --all-namespaces` - Back up all cluster namespaces
 - `-n, --namespaces` - Comma-separated list of namespaces to back up
 - `-o, --output` - Path to the output archive (required)
-- `--kubeconfig` - Path to the kubeconfig file (defaults to ~/.kube/config)
+- `--kubeconfig` - Path to the kubeconfig file (defaults to the in-cluster ServiceAccount, otherwise `~/.kube/config`)
 - `--upload-s3` - Upload the backup to S3 after creation (requires S3 configuration)
 
 #### Global flags
@@ -134,7 +151,7 @@ Or:
 #### restore command flags
 
 - `-i, --input` - Path to the backup archive (required unless --download-s3 is used)
-- `--kubeconfig` - Path to the kubeconfig file (defaults to ~/.kube/config)
+- `--kubeconfig` - Path to the kubeconfig file (defaults to the in-cluster ServiceAccount, otherwise `~/.kube/config`)
 - `--download-s3` - Download the backup from S3 (requires S3 configuration)
 - `--s3-object` - Name of the S3 object (the latest object is used if not specified)
 
@@ -226,7 +243,7 @@ export KUBECONFIG=/path/to/new-cluster/config
 ## Requirements
 
 - Go 1.27.1 or newer
-- Access to a Kubernetes cluster via kubeconfig
+- Access to a Kubernetes cluster via ServiceAccount (in-cluster) or kubeconfig
 - Required RBAC permissions for:
   - Backup: `list` on all resources
   - Restore: `create`, `update`, `get` on all resources

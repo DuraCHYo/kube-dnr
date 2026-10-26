@@ -83,7 +83,7 @@ var restoreCmd = &cobra.Command{
 
 func NewCommand() *cobra.Command {
 	restoreCmd.Flags().StringVarP(&restoreInput, "input", "i", "", "Путь к архиву бэкапа (обязательно, если не используется --download-s3)")
-	restoreCmd.Flags().StringVar(&restoreKubeconfig, "kubeconfig", "", "Путь к kubeconfig файлу (по умолчанию ~/.kube/config)")
+	restoreCmd.Flags().StringVar(&restoreKubeconfig, "kubeconfig", "", "Путь к kubeconfig файлу (по умолчанию: ServiceAccount внутри кластера, иначе ~/.kube/config)")
 	restoreCmd.Flags().BoolVar(&restoreDownloadS3, "download-s3", false, "Скачать бэкап из S3")
 	restoreCmd.Flags().StringVar(&restoreS3Object, "s3-object", "", "Имя объекта в S3 (если не указано, используется последний)")
 	return restoreCmd

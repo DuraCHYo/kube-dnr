@@ -19,6 +19,23 @@ Kubernetes Disaster-and-Recovery - консольная утилита для б
 go build -o kube-dnr
 ```
 
+### Docker
+
+Мультиархитектурные образы (`linux/amd64`, `linux/arm64`) публикуются в GitHub Container Registry при каждом релизе:
+
+```bash
+docker run --rm \
+  -v "$PWD/config.json:/config.json:ro" \
+  -v "$HOME/.kube/config:/home/nonroot/.kube/config:ro" \
+  -v "$PWD/backups:/tmp/backups" \
+  ghcr.io/durachyo/kube-dnr:latest \
+  --config /config.json backup -A -o /tmp/backups/backup.zip
+```
+
+Образ собран на distroless, работает от непривилегированного пользователя и не содержит shell.
+
+Если контейнер запущен внутри пода Kubernetes, kubeconfig не нужен: утилита автоматически использует ServiceAccount пода. Ему нужно выдать необходимые RBAC-права.
+
 ## Конфигурация
 
 Конфигурация задается через JSON файл, который указывается с помощью флага `--config`. Конфигурационный файл позволяет:
@@ -103,7 +120,7 @@ go build -o kube-dnr
 - `-A, --all-namespaces` - Бэкапить все неймспейсы кластера
 - `-n, --namespaces` - Список неймспейсов для бэкапа (через запятую)
 - `-o, --output` - Путь к выходному архиву (обязательно)
-- `--kubeconfig` - Путь к kubeconfig файлу (по умолчанию ~/.kube/config)
+- `--kubeconfig` - Путь к kubeconfig файлу (по умолчанию: ServiceAccount внутри кластера, иначе `~/.kube/config`)
 - `--upload-s3` - Загрузить бэкап в S3 после создания (требует настройки S3 в конфиге)
 
 #### Глобальные флаги
@@ -134,7 +151,7 @@ export KUBECONFIG=/path/to/other-cluster/config
 #### Флаги команды restore
 
 - `-i, --input` - Путь к архиву бэкапа (обязательно, если не используется --download-s3)
-- `--kubeconfig` - Путь к kubeconfig файлу (по умолчанию ~/.kube/config)
+- `--kubeconfig` - Путь к kubeconfig файлу (по умолчанию: ServiceAccount внутри кластера, иначе `~/.kube/config`)
 - `--download-s3` - Скачать бэкап из S3 (требует настройки S3 в конфиге)
 - `--s3-object` - Имя объекта в S3 (если не указано, используется последний объект)
 
@@ -226,7 +243,7 @@ export KUBECONFIG=/path/to/new-cluster/config
 ## Требования
 
 - Go 1.27.1 или выше
-- Доступ к Kubernetes кластеру через kubeconfig
+- Доступ к Kubernetes кластеру через ServiceAccount (внутри кластера) или kubeconfig
 - Необходимые права RBAC для:
   - Бэкап: `list` на всех ресурсах
   - Восстановление: `create`, `update`, `get` на всех ресурсах

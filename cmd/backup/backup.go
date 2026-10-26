@@ -75,7 +75,7 @@ func NewCommand() *cobra.Command {
 	backupCmd.Flags().BoolVarP(&backupAllNamespaces, "all-namespaces", "A", false, "Бэкапить все неймспейсы")
 	backupCmd.Flags().StringSliceVarP(&backupNamespaces, "namespaces", "n", []string{}, "Список неймспейсов для бэкапа (через запятую)")
 	backupCmd.Flags().StringVarP(&backupOutput, "output", "o", "", "Путь к выходному архиву (обязательно)")
-	backupCmd.Flags().StringVar(&backupKubeconfig, "kubeconfig", "", "Путь к kubeconfig файлу (по умолчанию ~/.kube/config)")
+	backupCmd.Flags().StringVar(&backupKubeconfig, "kubeconfig", "", "Путь к kubeconfig файлу (по умолчанию: ServiceAccount внутри кластера, иначе ~/.kube/config)")
 	backupCmd.Flags().BoolVar(&backupUploadS3, "upload-s3", false, "Загрузить бэкап в S3 после создания")
 	return backupCmd
 }

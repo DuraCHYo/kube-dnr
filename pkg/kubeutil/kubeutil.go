@@ -1,8 +1,8 @@
 package kubeutil
 
 import (
-	"os"
-	"path/filepath"
+	"errors"
+	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -15,16 +15,13 @@ import (
 // Позволяет restore не угадывать Resource name по Kind, что важно для CRD.
 const BackupGVRAnnotation = "kube-dnr.io/backup-gvr"
 
-// GetRESTConfig получает REST config из kubeconfig
-// (если путь не указан, используется ~/.kube/config).
+// GetRESTConfig возвращает конфигурацию для подключения к Kubernetes.
+// Приоритет источников:
+//  1. явно указанный kubeconfig (флаг --kubeconfig);
+//  2. ServiceAccount, если программа запущена внутри пода Kubernetes;
+//  3. kubeconfig из $KUBECONFIG или ~/.kube/config.
 func GetRESTConfig(kubeconfigPath string) (*rest.Config, error) {
-	if kubeconfigPath == "" {
-		if home := os.Getenv("HOME"); home != "" {
-			kubeconfigPath = filepath.Join(home, ".kube", "config")
-		}
-	}
-
-	restConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	restConfig, err := resolveRESTConfig(kubeconfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +30,29 @@ func GetRESTConfig(kubeconfigPath string) (*rest.Config, error) {
 	restConfig.Burst = 100
 
 	return restConfig, nil
+}
+
+func resolveRESTConfig(kubeconfigPath string) (*rest.Config, error) {
+	// Явно указанный kubeconfig имеет приоритет даже внутри кластера.
+	if kubeconfigPath != "" {
+		return clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	}
+
+	// Внутри пода используем ServiceAccount (KUBERNETES_SERVICE_HOST/PORT
+	// выставлены, токен смонтирован в /var/run/secrets/...).
+	restConfig, err := rest.InClusterConfig()
+	if err == nil {
+		return restConfig, nil
+	}
+	if !errors.Is(err, rest.ErrNotInCluster) {
+		return nil, fmt.Errorf("ошибка in-cluster конфигурации: %w", err)
+	}
+
+	// Вне кластера — обычный kubeconfig.
+	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientcmd.NewDefaultClientConfigLoadingRules(),
+		&clientcmd.ConfigOverrides{},
+	).ClientConfig()
 }
 
 // GVRToString форматирует GVR в строку "[group/]version/resource".
