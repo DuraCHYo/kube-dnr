@@ -16,7 +16,7 @@ Kubernetes Disaster-and-Recovery - консольная утилита для б
 ## Установка
 
 ```bash
-go build -o kube-dnr
+CGO_ENABLED=0 go build -o kube-dnr
 ```
 
 ### Docker
