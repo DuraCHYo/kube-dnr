@@ -16,7 +16,7 @@ Kubernetes Disaster-and-Recovery - a command-line utility for backing up and res
 ## Installation
 
 ```bash
-go build -o kube-dnr
+CGO_ENABLED=0 go build -o kube-dnr
 ```
 
 ### Docker
