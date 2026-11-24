@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"kube-dnr/config"
-	"log/slog"
+	logutil "kube-dnr/pkg/logger"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,9 +13,8 @@ import (
 )
 
 // UploadArchive загружает архив в S3
-func UploadArchive(cfg *config.Config, filePath string) error {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	ctx := context.Background()
+func UploadArchive(ctx context.Context, cfg *config.Config, filePath string) error {
+	logger := logutil.FromContext(ctx)
 
 	// Проверяем существование файла
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {

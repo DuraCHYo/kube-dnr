@@ -30,27 +30,28 @@ dockers_v2:
   - images:
       - ghcr.io/durachyo/kube-dnr
     tags:
-      - '{{ .Version }}'
-      - '{{ if not .Prerelease }}latest{{ end }}'
+      - "{{ .Version }}"
+      - "v{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
     dockerfile: Dockerfile
     platforms:
       - linux/amd64
       - linux/arm64
     sbom: false
     labels:
-      org.opencontainers.image.title: '{{ .ProjectName }}'
+      org.opencontainers.image.title: "{{ .ProjectName }}"
       org.opencontainers.image.description: Kubernetes Disaster Recovery utility
-      org.opencontainers.image.url: '{{ .GitURL }}'
-      org.opencontainers.image.source: '{{ .GitURL }}'
-      org.opencontainers.image.revision: '{{ .FullCommit }}'
-      org.opencontainers.image.version: '{{ .Version }}'
+      org.opencontainers.image.url: "{{ .GitURL }}"
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.version: "{{ .Version }}"
       org.opencontainers.image.licenses: MIT
     annotations:
-      org.opencontainers.image.title: '{{ .ProjectName }}'
+      org.opencontainers.image.title: "{{ .ProjectName }}"
       org.opencontainers.image.description: Kubernetes Disaster Recovery utility
-      org.opencontainers.image.source: '{{ .GitURL }}'
-      org.opencontainers.image.revision: '{{ .FullCommit }}'
-      org.opencontainers.image.version: '{{ .Version }}'
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.version: "{{ .Version }}"
       org.opencontainers.image.licenses: MIT
 
 archives:
@@ -70,8 +71,8 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
+      - "^docs:"
+      - "^test:"
 
 release:
   footer: >-

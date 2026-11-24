@@ -1,0 +1,8 @@
+[vcs.confirmation]
+showUpdateOptions = false
+
+[languages.ruff]
+runOnSave = true
+
+[languages.go.buildTags]
+cgo = "0"

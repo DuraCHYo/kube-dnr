@@ -11,6 +11,7 @@ import (
 
 	"kube-dnr/config"
 	"kube-dnr/pkg/kubeutil"
+	logutil "kube-dnr/pkg/logger"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -23,8 +24,8 @@ import (
 
 // PerformBackup выполняет бэкап ресурсов Kubernetes
 func PerformBackup(ctx context.Context, kubeconfigPath string, namespaces []string, outputPath string, cfg *config.Config) error {
-	// Логгер создаем один раз на весь сеанс работы
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// Логгер берем из контекста (создается один раз в cmd/root.go)
+	logger := logutil.FromContext(ctx)
 
 	excludedResources := cfg.Kubernetes.ExcludedResources
 	excludedSubstrings := cfg.Kubernetes.ExcludedSubstrings
@@ -216,7 +217,7 @@ func backupResource(ctx context.Context, dynamicClient dynamic.Interface, gvr sc
 		if err := addFileToZip(zipWriter, filePath, yamlData); err != nil {
 			return fmt.Errorf("ошибка при добавлении файла в архив: %w", err)
 		}
-		logger.Info("Файл сохранен", "resource", kind, "file", filePath, "namespace", namespace)
+		logger.Debug("Файл сохранен", "resource", kind, "file", filePath, "namespace", namespace)
 	}
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"kube-dnr/pkg/kubeutil"
+	logutil "kube-dnr/pkg/logger"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -23,8 +24,8 @@ import (
 
 // PerformRestore выполняет восстановление ресурсов из архива
 func PerformRestore(ctx context.Context, kubeconfigPath string, inputPath string) error {
-	// Логгер создаем один раз на весь сеанс работы
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	// Логгер берем из контекста (создается один раз в cmd/root.go)
+	logger := logutil.FromContext(ctx)
 
 	// Проверяем существование архива
 	if _, err := os.Stat(inputPath); err != nil {
@@ -93,7 +94,7 @@ func PerformRestore(ctx context.Context, kubeconfigPath string, inputPath string
 			logger.Warn("Ошибка при восстановлении ресурса", "file", file.Name, "err", err)
 			continue
 		}
-		logger.Info("Восстановлен", "kind", obj.GetKind(), "object", obj.GetName(), "namespace", namespace)
+		logger.Debug("Восстановлен", "kind", obj.GetKind(), "object", obj.GetName(), "namespace", namespace)
 	}
 
 	return nil

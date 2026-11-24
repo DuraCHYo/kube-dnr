@@ -8,12 +8,16 @@ import (
 	backupcmd "kube-dnr/cmd/backup"
 	restorecmd "kube-dnr/cmd/restore"
 	"kube-dnr/config"
+	"kube-dnr/pkg/logger"
 
 	"github.com/spf13/cobra"
 )
 
 var (
 	configPath string
+
+	// verbose повышает детализацию логов (уровень Debug).
+	verbose bool
 
 	// version подставляется при сборке через
 	// -ldflags "-X kube-dnr/cmd.version=<version>".
@@ -40,8 +44,15 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("ошибка при загрузке конфигурации: %w", err)
 		}
+
 		// Сохраняем конфиг в контексте команды
-		cmd.SetContext(config.NewContext(context.Background(), cfg))
+		ctx := config.NewContext(context.Background(), cfg)
+
+		// Логгер создаем один раз на весь запуск (с учетом --verbose)
+		// и тоже передаем через контекст, чтобы все пакеты писали
+		// в один поток с единым уровнем логирования.
+		ctx = logger.NewContext(ctx, logger.New(os.Stdout, verbose))
+		cmd.SetContext(ctx)
 		return nil
 	},
 }
@@ -52,6 +63,7 @@ func init() {
 `)
 
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Путь к конфигурационному файлу (обязательно)")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Подробный вывод (уровень логирования debug)")
 	rootCmd.AddCommand(backupcmd.NewCommand())
 	rootCmd.AddCommand(restorecmd.NewCommand())
 }

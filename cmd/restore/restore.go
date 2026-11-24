@@ -46,7 +46,7 @@ var restoreCmd = &cobra.Command{
 				tmpPath := tmpFile.Name()
 				tmpFile.Close()
 
-				err = s3.DownloadArchive(cfg, restoreS3Object, tmpPath)
+				err = s3.DownloadArchive(cmd.Context(), cfg, restoreS3Object, tmpPath)
 				if err != nil {
 					os.Remove(tmpPath) // Убираем недокачанный файл
 					fmt.Printf("Ошибка при скачивании из S3: %v\n", err)
@@ -56,7 +56,7 @@ var restoreCmd = &cobra.Command{
 				inputPath = tmpPath
 			} else {
 				// Если input указан, скачиваем в этот путь
-				err := s3.DownloadArchive(cfg, restoreS3Object, inputPath)
+				err := s3.DownloadArchive(cmd.Context(), cfg, restoreS3Object, inputPath)
 				if err != nil {
 					fmt.Printf("Ошибка при скачивании из S3: %v\n", err)
 					os.Exit(1)

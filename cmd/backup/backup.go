@@ -6,9 +6,10 @@ import (
 
 	"kube-dnr/config"
 
-	"github.com/spf13/cobra"
 	"kube-dnr/pkg/backup"
 	"kube-dnr/pkg/s3"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -63,7 +64,7 @@ var backupCmd = &cobra.Command{
 
 		// Загружаем в S3 если указан флаг
 		if backupUploadS3 {
-			if err := s3.UploadArchive(cfg, backupOutput); err != nil {
+			if err := s3.UploadArchive(cmd.Context(), cfg, backupOutput); err != nil {
 				fmt.Printf("Ошибка при загрузке в S3: %v\n", err)
 				os.Exit(1)
 			}

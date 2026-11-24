@@ -126,6 +126,7 @@ Back up using a custom kubeconfig:
 #### Global flags
 
 - `--config` - Path to the configuration file (required)
+- `-v, --verbose` - Verbose output (debug log level, including per-resource progress)
 
 ### Restore mode
 
@@ -158,6 +159,7 @@ Or:
 #### Global flags
 
 - `--config` - Path to the configuration file (required)
+- `-v, --verbose` - Verbose output (debug log level, including per-resource progress)
 
 ## Archive structure
 

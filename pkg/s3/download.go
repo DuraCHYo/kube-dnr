@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"kube-dnr/config"
-	"log/slog"
+	logutil "kube-dnr/pkg/logger"
 	"os"
 	"path/filepath"
 
@@ -13,9 +13,8 @@ import (
 )
 
 // DownloadArchive скачивает архив из S3
-func DownloadArchive(cfg *config.Config, objectName string, outputPath string) error {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	ctx := context.Background()
+func DownloadArchive(ctx context.Context, cfg *config.Config, objectName string, outputPath string) error {
+	logger := logutil.FromContext(ctx)
 
 	bucketName := cfg.S3.Bucket
 
