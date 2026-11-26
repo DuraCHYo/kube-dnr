@@ -51,6 +51,16 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Render the application config as pretty JSON without Go's HTML escaping.
+Go's json.Marshal escapes <, > and & as \u003c, \u003e and \u0026, which breaks
+external placeholder processors such as argocd-vault-plugin: they look for a
+literal <path:...> and would never match the escaped form.
+*/}}
+{{- define "kube-dnr.configJson" -}}
+{{- toPrettyJson . | replace "\\u003c" "<" | replace "\\u003e" ">" | replace "\\u0026" "&" -}}
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "kube-dnr.serviceAccountName" -}}
