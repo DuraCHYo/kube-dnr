@@ -10,17 +10,49 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
-# Application run arguments
+# Backup schedule (cron format)
 cronSchedule: "0 2 * * *"
 
-args: []
-  # - "backup"
-  # - "-A"
-  # - "-o"
-  # - "sfaflprod.zip"
-  # - "--upload-s3"
-  # - "--config"
-  # - "tmp/config.json"
+# Application run arguments.
+# Defaults: back up all namespaces to /tmp and upload the archive to S3.
+# /tmp is a writable emptyDir (see volumes/volumeMounts below), so it works
+# with readOnlyRootFilesystem: true.
+args:
+  - "--config"
+  - "/etc/kube-dnr/config.json"
+  - "backup"
+  - "-A"
+  - "-o"
+  - "/tmp/sfaflprod.zip"
+  - "--upload-s3"
+
+# Application config (config.json). Rendered into a ConfigMap and mounted at
+# /etc/kube-dnr/config.json (read-only), so the path in args above matches it.
+# Set `config: null` to disable the ConfigMap and mount your own file via
+# volumes/volumeMounts (e.g. from a Secret with real credentials).
+config:
+  kubernetes:
+    excludedresources:
+      - Pod
+      - PodMetrics
+      - NodeMetrics
+      - Event
+      - ReplicaSet
+      - Endpoints
+    excludednamespaces:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+    excludedsubstrings:
+      - sh.helm.release
+      - kube-root-ca.crt
+  s3:
+    bucket: ""
+    endpoint: ""
+    region: "us-east-1"
+    accesskeyid: ""
+    secretaccesskey: ""
+    usessl: true
 
 # This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
 imagePullSecrets: []
@@ -46,16 +78,24 @@ podAnnotations: {}
 # For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
 podLabels: {}
 
-podSecurityContext: {}
-  # fsGroup: 2000
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
 
-securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+# The image runs as non-root (distroless:nonroot) and the application only
+# needs a writable /tmp (backup archive and temporary files). With the
+# read-only root filesystem below, /tmp is provided by an emptyDir volume.
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 65532
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -75,11 +115,17 @@ volumes:
     hostPath:
       path: /etc/localtime
       type: ""
+  # The root filesystem is read-only, so /tmp must be mounted separately:
+  # the app writes the backup archive and restore temp files there.
+  - name: tmp
+    emptyDir: {}
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts:
   - name: tz-config
     readOnly: true
     mountPath: /etc/localtime
+  - name: tmp
+    mountPath: /tmp
 
 nodeSelector: {}
 
